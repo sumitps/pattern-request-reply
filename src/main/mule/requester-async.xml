@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:aggregators="http://www.mulesoft.org/schema/mule/aggregators" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:jms="http://www.mulesoft.org/schema/mule/jms" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/current/mule-jms.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/aggregators http://www.mulesoft.org/schema/mule/aggregators/current/mule-aggregators.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="79a722a7-035e-4e0c-983a-48244de5725d" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<jms:config name="JMS_Config" doc:name="JMS Config" doc:id="c4f39479-49aa-4d78-8abf-16626c8dc0f1" >
+		<jms:active-mq-connection username="admin" password="admin" >
+			<reconnection >
+				<reconnect-forever blocking="false" />
+			</reconnection>
+			<jms:factory-configuration brokerUrl="tcp://localhost:61616" />
+		</jms:active-mq-connection>
+	</jms:config>
+	<os:config name="ObjectStore_Config" doc:name="ObjectStore Config" doc:id="3e0b71f7-108f-4933-b301-f55bd8180b1f" >
+		<os:connection />
+	</os:config>
+	<os:object-store name="Object_store" doc:name="Object store" doc:id="968bbcf4-016a-49f3-aade-9af6b8ac8167" config-ref="ObjectStore_Config" persistent="false"/>
+	<flow name="msg-publisher-flow-async" doc:id="b9f4e781-a274-4b4f-a1de-3d0dd32de04e" >
+		<http:listener doc:name="/requester-sync" doc:id="d7897c4e-18c4-4c8b-afbc-63d1ca4e84df" config-ref="HTTP_Listener_config" path="/requester-async"/>
+		<jms:publish doc:name="Publish to MuleCorrReqQ" doc:id="efb2d222-2248-492b-978b-406d6edfaec6" config-ref="JMS_Config" destination="MuleCorrReqQ" disableMessageId="false" disableMessageTimestamp="false">
+			<jms:message correlationId="#[correlationId]" outboundContentType="application/json" outboundEncoding="UTF-8">
+				<jms:reply-to destination="MuleCorrReplyQ" />
+			</jms:message>
+		</jms:publish>
+	</flow>
+	<flow name="reply-processing-flow-async" doc:id="9a6aa512-30a5-44ff-ba34-d76c84788cbd">
+		<jms:listener doc:name="On New Message from MuleCorrReplyQ" doc:id="60928abd-5b79-472e-a45c-ef1820d2616b" config-ref="JMS_Config" destination="MuleCorrReplyQ" ackMode="AUTO" primaryNodeOnly="false" inboundContentType="application/json" inboundEncoding="UTF-8">
+			<jms:consumer-type>
+				<jms:queue-consumer />
+			</jms:consumer-type>
+		</jms:listener>
+		<ee:transform doc:name="do further processing" doc:id="af2b2aad-8fc5-493d-a9c8-a1a9577865ea" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	request: vars.request,
+	reply: payload
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Log Payload" doc:id="e4b34bd1-8c38-4341-9227-89ecc879b0c3" message="#[payload]"/>
+	</flow>
+</mule>

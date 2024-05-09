@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:aggregators="http://www.mulesoft.org/schema/mule/aggregators" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:jms="http://www.mulesoft.org/schema/mule/jms" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/current/mule-jms.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/aggregators http://www.mulesoft.org/schema/mule/aggregators/current/mule-aggregators.xsd">
+	<flow name="msg-publisher-flow-sync-using-known-queue" doc:id="b9f4e781-a274-4b4f-a1de-3d0dd32de04e" >
+		<http:listener doc:name="/requester-sync" doc:id="d7897c4e-18c4-4c8b-afbc-63d1ca4e84df" path="/requester-sync" config-ref="HTTP_Listener_config"/>
+		<set-variable value="#[payload]" doc:name="store request" doc:id="4b1a0f5f-ebe6-43b2-bb2e-1463f7c79123" variableName="request" />
+		<jms:publish-consume doc:name="Publish consume" doc:id="edc56ea7-2f53-46ef-9eaa-7deb75c4920b" config-ref="JMS_Config" destination="MuleCorrReqQ" requestReplyPattern="NONE">
+			<jms:message>
+					<jms:reply-to destination="consumer01.in" />
+				</jms:message>
+				<jms:consume-configuration maximumWait="30" maximumWaitUnit="SECONDS" />
+		</jms:publish-consume>
+		<ee:transform doc:name="do further processing" doc:id="c646834d-1031-482e-a826-1f691751b285">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	request: vars.request,
+	reply: payload
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="msg-publisher-flow-sync-using-temp-queues" doc:id="fe199505-78c6-4f63-b391-6bed821ccdc1" >
+		<http:listener doc:name="/requester-sync-shared-queue" doc:id="4abbafa5-3fd9-4efc-a5da-74ad7df41a6e" config-ref="HTTP_Listener_config" path="/requester-sync-shared-queue" />
+		<ee:transform doc:name="create multiple requests" doc:id="de39eb75-241d-4982-b5d0-a79f8c445be6" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+(1 to 1000) map (payload)]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<parallel-foreach doc:name="Parallel For Each" doc:id="ebb455c1-e7b8-4cc6-9675-e6a6ef7efe86" >
+			<jms:publish-consume doc:name="Publish consume" doc:id="eda53294-64bc-43e5-a416-e048793414a4" config-ref="JMS_Config" destination="MuleCorrReqQ" requestReplyPattern="NONE">
+			<jms:consume-configuration maximumWait="30" maximumWaitUnit="SECONDS" />
+		</jms:publish-consume>
+		</parallel-foreach>
+		<ee:transform doc:name="do further processing" doc:id="ec070f35-3ff1-4daa-92b6-de7bbd5372be">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	replies: payload.payload
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>

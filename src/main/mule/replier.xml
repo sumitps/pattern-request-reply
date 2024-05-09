@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:os="http://www.mulesoft.org/schema/mule/os" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:jms="http://www.mulesoft.org/schema/mule/jms"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/current/mule-jms.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+	<flow name="req-processing-flow" doc:id="deb87c51-58fa-48a4-a6a6-f4aa46775cf1" >
+		<jms:listener doc:name="On New Message from MuleCorrReqQ" doc:id="c158affa-b2dc-4d2a-94a1-39ac63aa7bc6" destination="MuleCorrReqQ" ackMode="AUTO" numberOfConsumers="10" primaryNodeOnly="false" config-ref="JMS_Config">
+			<jms:consumer-type >
+				<jms:queue-consumer />
+			</jms:consumer-type>
+			<jms:response sendCorrelationId="ALWAYS">
+			</jms:response>
+		</jms:listener>
+		<ee:transform doc:name="update payload" doc:id="714edcfc-3422-401a-a3ee-17aa2e7cf96f" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload ++
+{
+	 msg: "order_processed"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>
